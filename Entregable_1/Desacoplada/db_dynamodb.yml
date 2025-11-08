@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "DynamoDB Table mínima para pruebas"
+
+Parameters:
+  TableName:
+    Type: String
+    Default: books
+    Description: DynamoDB lambda table Name
+
+Resources:
+  BooksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TableName
+      AttributeDefinitions:
+        - AttributeName: book_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: book_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  TableName:
+    Description: DynamoDB lambda table name
+    Value: !Ref BooksTable
+
+  TableArn:
+    Description: ARN DynamoDB lambda table
+    Value: !GetAtt BooksTable.Arn
+
+### AÑADIR TRES ATRIBUTOS PARA 

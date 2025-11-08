@@ -1,0 +1,329 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Serverless Books API - API Gateway + Lambda (ECR Images + DynamoDB)"
+
+Parameters:
+  Region:
+    Type: String
+    Default: us-east-1
+    Description: AWS Region
+
+  ECRRepositoryName:
+    Type: String
+    Default: books-app
+    Description: Nombre del repositorio ECR que contiene todas las imágenes
+
+  DBDynamoName:
+    Type: String
+    Default: books
+    Description: DynamoDB table name
+
+Resources:
+  # ======================================================
+  # DYNAMODB TABLE COMENTAR SI YA ESTA CREADA 
+  # ======================================================
+
+  #BooksTable:
+  #  Type: AWS::DynamoDB::Table
+  #  Properties:
+  #    TableName: !Ref DBDynamoName
+  #    AttributeDefinitions:
+  #      - AttributeName: book_id
+  #        AttributeType: S
+  #    KeySchema:
+  #      - AttributeName: book_id
+  #        KeyType: HASH
+  #    BillingMode: PAY_PER_REQUEST
+
+  # ======================================================
+  # LAMBDAS
+  # ======================================================
+  PostBooksLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: create-book
+      PackageType: Image
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Code:
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:post_book"
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_DYNAMONAME: !Ref DBDynamoName
+      Architectures:
+        - x86_64
+
+  GetBooksLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: get-books
+      PackageType: Image
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Code:
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:gets_book"
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_DYNAMONAME: !Ref DBDynamoName
+      Architectures:
+        - x86_64
+
+  GetBookLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: get-book
+      PackageType: Image
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Code:
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:get_book"
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_DYNAMONAME: !Ref DBDynamoName
+      Architectures:
+        - x86_64
+
+  PutBooksLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: update-book
+      PackageType: Image
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Code:
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:put_book"
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_DYNAMONAME: !Ref DBDynamoName
+      Architectures:
+        - x86_64
+
+  DeleteBookLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: delete-book
+      PackageType: Image
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
+      Code:
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:delete_book"
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_DYNAMONAME: !Ref DBDynamoName
+      Architectures:
+        - x86_64
+
+  # ======================================================
+  # CLOUDWATCH LOGS
+  # ======================================================
+  PostBooksLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${PostBooksLambda}"
+      RetentionInDays: 7
+
+  GetBooksLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${GetBooksLambda}"
+      RetentionInDays: 7
+
+  GetBookLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${GetBookLambda}"
+      RetentionInDays: 7
+
+  PutBooksLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${PutBooksLambda}"
+      RetentionInDays: 7
+
+  DeleteBookLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${DeleteBookLambda}"
+      RetentionInDays: 7
+
+  # ======================================================
+  # API GATEWAY
+  # ======================================================
+  RestAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: books-lambda-api
+      Description: API for Books CRUD (Serverless)
+
+  BooksResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestAPI
+      ParentId: !GetAtt RestAPI.RootResourceId
+      PathPart: books
+
+  BookResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestAPI
+      ParentId: !Ref BooksResource
+      PathPart: "{id}"
+
+  # ---------- MÉTODOS ----------
+  PostBooksMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestAPI
+      ResourceId: !Ref BooksResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt PostBooksLambda.Arn }
+
+  GetBooksMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestAPI
+      ResourceId: !Ref BooksResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt GetBooksLambda.Arn }
+
+  GetBookMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestAPI
+      ResourceId: !Ref BookResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt GetBookLambda.Arn }
+
+  PutBookMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestAPI
+      ResourceId: !Ref BookResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt PutBooksLambda.Arn }
+
+  DeleteBookMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestAPI
+      ResourceId: !Ref BookResource
+      HttpMethod: DELETE
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt DeleteBookLambda.Arn }
+
+  # ======================================================
+  # PERMISOS API → LAMBDAS
+  # ======================================================
+  PostBooksPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PostBooksLambda
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
+
+  GetBooksPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref GetBooksLambda
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
+
+  GetBookPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref GetBookLambda
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
+
+  PutBooksPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PutBooksLambda
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
+
+  DeleteBookPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DeleteBookLambda
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
+
+  # ======================================================
+  # DEPLOY + STAGE
+  # ======================================================
+  APIDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - PostBooksMethod
+      - GetBooksMethod
+      - GetBookMethod
+      - PutBookMethod
+      - DeleteBookMethod
+    Properties:
+      RestApiId: !Ref RestAPI
+
+  APIStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref RestAPI
+      DeploymentId: !Ref APIDeployment
+      StageName: prod
+
+Outputs:
+  APIEndpoint:
+    Description: API Gateway endpoint
+    Value: !Sub "https://${RestAPI}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  
+  DynamoDBTableName:
+    Description: DynamoDB Table Name
+    #Value: !Ref BooksTable #comentar si ya esta creada
+    Value: !Ref DBDynamoName #si ya esta creada  
+  
+  ECRRepository:
+    Description: ECR Repository URI
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}"
