@@ -163,9 +163,9 @@
         font-weight: bold;
     }
 
-    .badge.reading { background: #ffeaa7; color: #2d3436; }
-    .badge.finished { background: #81ecec; color: #2d3436; }
-    .badge.pending { background: #fab1a0; color: #2d3436; }
+    .badge.reading { background: #ffeaa7; }
+    .badge.finished { background: #81ecec; }
+    .badge.pending { background: #fab1a0; }
 
     .stars {
         color: #fdcb6e;
@@ -208,14 +208,8 @@
     }
 
     .modal-content h2 {
-        margin-bottom: 10px;
-        color: #2d3436;
-    }
-
-    .modal-subtitle {
-        color: #636e72;
-        font-size: 14px;
         margin-bottom: 20px;
+        color: #2d3436;
     }
 
     .form-group {
@@ -226,15 +220,6 @@
         font-weight: 600;
         margin-bottom: 5px;
         display: block;
-        color: #2d3436;
-    }
-
-    .form-group small {
-        display: block;
-        color: #636e72;
-        font-size: 12px;
-        margin-top: 3px;
-        font-weight: normal;
     }
 
     .form-group input, .form-group textarea, .form-group select {
@@ -242,43 +227,16 @@
         padding: 10px;
         border: 2px solid #e0e0e0;
         border-radius: 6px;
-        transition: border-color 0.3s;
-    }
-
-    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
-        outline: none;
-        border-color: #0984e3;
-    }
-
-    .form-group textarea {
-        min-height: 80px;
-        resize: vertical;
-    }
-
-    .required-indicator {
-        color: #e74c3c;
-        margin-left: 2px;
     }
 
     .form-actions {
         text-align: right;
         margin-top: 20px;
-        display: flex;
-        gap: 10px;
-        justify-content: flex-end;
     }
 
     .error {
         background: #ffe6e6;
         color: #c0392b;
-        padding: 10px;
-        border-radius: 6px;
-        margin: 10px 0;
-    }
-
-    .success {
-        background: #d4edda;
-        color: #155724;
         padding: 10px;
         border-radius: 6px;
         margin: 10px 0;
@@ -290,32 +248,6 @@
         font-size: 18px;
         margin-top: 20px;
     }
-
-    .info-box {
-        background: #e3f2fd;
-        border-left: 4px solid #2196f3;
-        padding: 12px;
-        margin-bottom: 20px;
-        border-radius: 4px;
-        font-size: 14px;
-        color: #1976d2;
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        color: white;
-    }
-
-    .empty-state h3 {
-        font-size: 24px;
-        margin-bottom: 10px;
-    }
-
-    .empty-state p {
-        font-size: 16px;
-        margin-bottom: 20px;
-    }
 </style>
 </head>
 <body>
@@ -324,8 +256,8 @@
 <div id="configOverlay" class="config-overlay">
     <div class="config-modal">
         <h2>🔐 Conectar con tu API</h2>
-        <input type="text" id="apiUrl" placeholder="URL de la API">
-        <input type="password" id="apiKey" placeholder="Clave de API">
+        <input type="text" id="apiUrl" placeholder="https://zmke9i5e4g.execute-api.us-east-1.amazonaws.com/prod">
+        <input type="password" id="apiKey" placeholder="YCvnWMq0FV3QIAc5NElaG55l3iCHoqJhsMNfcTB8">
         <button onclick="saveConfig()">Conectar</button>
     </div>
 </div>
@@ -333,106 +265,70 @@
 <!-- App -->
 <div id="app" style="display:none;">
     <div class="header">
-        <h1>📚 Mi Biblioteca</h1>
+        <h1>📚 Biblioteca</h1>
         <div class="header-actions">
-            <button class="btn btn-primary" onclick="openBookModal()">+ Añadir Libro</button>
+            <button class="btn btn-primary" onclick="openBookModal()">+ Nuevo Libro</button>
             <button class="btn btn-secondary" onclick="loadBooks()">🔄 Actualizar</button>
             <button class="btn btn-secondary" onclick="logout()">⚙️ Configurar</button>
         </div>
     </div>
 
-    <div id="messageContainer"></div>
+    <div id="errorContainer"></div>
     <div id="loading" class="loading" style="display:none;">Cargando libros...</div>
 
     <div class="grid" id="bookGrid"></div>
-    <div id="emptyState" style="display:none;" class="empty-state">
-        <h3>📚 Tu biblioteca está vacía</h3>
-        <p>Comienza añadiendo tu primer libro haciendo clic en "+ Añadir Libro"</p>
-    </div>
 </div>
 
 <!-- Modal -->
 <div id="bookModal" class="modal">
     <div class="modal-content">
-        <h2 id="modalTitle">Añadir Nuevo Libro</h2>
-        <p class="modal-subtitle" id="modalSubtitle">Completa la información básica de tu libro. Los campos marcados con * son obligatorios.</p>
-        
-        <div class="info-box">
-            💡 <strong>Consejo:</strong> Añade al menos el título, autor y un campo adicional (género, estado o puntuación) para guardar el libro.
-        </div>
-
+        <h2 id="modalTitle">Nuevo Libro</h2>
         <form id="bookForm">
             <div class="form-group">
-                <label>Título <span class="required-indicator">*</span></label>
-                <input type="text" id="bookTitle" placeholder="Ej: Cien años de soledad" required>
-                <small>El nombre completo del libro</small>
+                <label>Título *</label>
+                <input type="text" id="bookTitle" required>
             </div>
-
             <div class="form-group">
-                <label>Autor <span class="required-indicator">*</span></label>
-                <input type="text" id="bookAuthor" placeholder="Ej: Gabriel García Márquez" required>
-                <small>Nombre del autor o autores</small>
+                <label>Autor *</label>
+                <input type="text" id="bookAuthor" required>
             </div>
-
             <div class="form-group">
-                <label>Género</label>
-                <select id="bookGenre">
-                    <option value="">Selecciona un género...</option>
-                    <option value="Ficción">Ficción</option>
-                    <option value="No Ficción">No Ficción</option>
-                    <option value="Fantasía">Fantasía</option>
-                    <option value="Ciencia Ficción">Ciencia Ficción</option>
-                    <option value="Romance">Romance</option>
-                    <option value="Misterio">Misterio</option>
-                    <option value="Thriller">Thriller</option>
-                    <option value="Terror">Terror</option>
-                    <option value="Biografía">Biografía</option>
-                    <option value="Historia">Historia</option>
-                    <option value="Ensayo">Ensayo</option>
-                    <option value="Poesía">Poesía</option>
-                    <option value="Autoayuda">Autoayuda</option>
-                    <option value="Juvenil">Juvenil</option>
-                    <option value="Infantil">Infantil</option>
-                    <option value="Clásico">Clásico</option>
-                    <option value="Aventura">Aventura</option>
-                    <option value="Drama">Drama</option>
-                    <option value="Humor">Humor</option>
-                    <option value="Otro">Otro</option>
+                <label>Género *</label>
+                <select id="bookGenre" multiple required>
+                    <option value="fiction">Ficción</option>
+                    <option value="non-fiction">No ficción</option>
+                    <option value="fantasy">Fantasía</option>
+                    <option value="sci-fi">Ciencia ficción</option>
+                    <option value="romance">Romance</option>
+                    <option value="mystery">Misterio</option>
+                    <option value="thriller">Thriller</option>
+                    <option value="biography">Biografía</option>
+                    <option value="history">Historia</option>
+                    <option value="self-help">Autoayuda</option>
                 </select>
-                <small>Categoría literaria del libro</small>
             </div>
-
             <div class="form-group">
-                <label>Estado de Lectura</label>
+                <label>Estado</label>
                 <select id="bookStatus">
-                    <option value="pending">📚 Pendiente - No he empezado</option>
-                    <option value="reading">📖 Leyendo - En progreso</option>
-                    <option value="finished">✅ Terminado - Completado</option>
+                    <option value="available">Disponible</option>
+                    <option value="borrowed">Prestado</option>
                 </select>
-                <small>Tu progreso con este libro</small>
             </div>
-
             <div class="form-group">
-                <label>Puntuación (0-5 estrellas)</label>
-                <input type="number" id="bookRating" min="0" max="5" step="1" placeholder="0">
-                <small>¿Qué te pareció? 0 = no valorado, 5 = excelente</small>
+                <label>Puntuación (0-5)</label>
+                <input type="number" id="bookRating" min="0" max="5">
             </div>
-
             <div class="form-group">
-                <label>URL de la Portada</label>
-                <input type="url" id="bookCover" placeholder="https://ejemplo.com/portada.jpg">
-                <small>Enlace a una imagen de la portada (opcional)</small>
+                <label>Stock *</label>
+                <input type="number" id="bookStock" min="0" required>
             </div>
-
             <div class="form-group">
-                <label>Notas Personales</label>
-                <textarea id="bookNotes" placeholder="Escribe tus pensamientos, citas favoritas o recordatorios sobre este libro..."></textarea>
-                <small>Cualquier comentario o reflexión que quieras recordar</small>
+                <label>Notas</label>
+                <textarea id="bookNotes"></textarea>
             </div>
-
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-                <button type="submit" class="btn btn-primary">💾 Guardar Libro</button>
+                <button type="submit" class="btn btn-primary">Guardar</button>
             </div>
         </form>
     </div>
@@ -458,10 +354,7 @@ window.onload = () => {
 function saveConfig() {
     const url = document.getElementById('apiUrl').value.trim();
     const key = document.getElementById('apiKey').value.trim();
-    if (!url || !key) {
-        showMessage('Por favor, completa la URL y la clave de API', 'error');
-        return;
-    }
+    if (!url || !key) return alert('Completa ambos campos');
     API_URL = url.endsWith('/') ? url.slice(0, -1) : url;
     API_KEY = key;
     localStorage.setItem('apiUrl', API_URL);
@@ -492,9 +385,8 @@ async function loadBooks() {
         showLoading(true);
         books = await apiRequest('/books');
         renderBooks();
-        showMessage(`✓ ${books.length} libro${books.length !== 1 ? 's' : ''} cargado${books.length !== 1 ? 's' : ''}`, 'success');
     } catch (e) {
-        showMessage('❌ Error al cargar los libros. Verifica tu conexión e intenta de nuevo.', 'error');
+        showError('Error al cargar libros');
     } finally {
         showLoading(false);
     }
@@ -502,51 +394,33 @@ async function loadBooks() {
 
 function renderBooks() {
     const grid = document.getElementById('bookGrid');
-    const emptyState = document.getElementById('emptyState');
-    
-    if (books.length === 0) {
-        grid.style.display = 'none';
-        emptyState.style.display = 'block';
-        return;
-    }
-    
-    grid.style.display = 'grid';
-    emptyState.style.display = 'none';
     grid.innerHTML = '';
     books.forEach(book => grid.appendChild(createBookCard(book)));
 }
 
 function createBookCard(book) {
-    const statusLabels = {
-        pending: 'Pendiente',
-        reading: 'Leyendo',
-        finished: 'Terminado'
-    };
-    
     const div = document.createElement('div');
     div.className = 'card';
     div.innerHTML = `
-        <img src="${book.cover || 'https://via.placeholder.com/300x180?text=Sin+Portada'}" alt="${book.title}">
+        <img src="${book.cover || 'https://via.placeholder.com/300x180?text=Sin+Portada'}">
         <div class="card-content">
             <div class="book-title">${book.title}</div>
             <div class="book-author">${book.author}</div>
-            ${book.genre ? `<div class="book-author" style="font-size: 12px;">📖 ${book.genre}</div>` : ''}
             <div class="book-meta">
-                <span class="badge ${book.status}">${statusLabels[book.status] || book.status}</span>
-                <span class="stars">${'★'.repeat(book.rating || 0)}${'☆'.repeat(5 - (book.rating || 0))}</span>
+                <span class="badge ${book.status}">${book.status}</span>
+                <span class="stars">${'★'.repeat(book.rating || 0)}</span>
             </div>
         </div>
         <div class="card-actions">
             <button class="btn btn-primary" onclick="editBook('${book.book_id}')">✏️ Editar</button>
-            <button class="btn btn-secondary" onclick="deleteBook('${book.book_id}')">🗑️ Eliminar</button>
+            <button class="btn btn-secondary" onclick="deleteBook('${book.book_id}')">🗑️</button>
         </div>`;
     return div;
 }
 
 function openBookModal() {
     currentBookId = null;
-    document.getElementById('modalTitle').textContent = 'Añadir Nuevo Libro';
-    document.getElementById('modalSubtitle').textContent = 'Completa la información básica de tu libro. Los campos marcados con * son obligatorios.';
+    document.getElementById('modalTitle').textContent = 'Nuevo Libro';
     document.getElementById('bookForm').reset();
     document.getElementById('bookModal').classList.add('active');
 }
@@ -559,88 +433,56 @@ async function editBook(id) {
     const book = books.find(b => b.book_id === id);
     currentBookId = id;
     document.getElementById('modalTitle').textContent = 'Editar Libro';
-    document.getElementById('modalSubtitle').textContent = 'Modifica la información de tu libro.';
     document.getElementById('bookTitle').value = book.title;
     document.getElementById('bookAuthor').value = book.author;
-    document.getElementById('bookGenre').value = book.genre || '';
     document.getElementById('bookStatus').value = book.status;
-    document.getElementById('bookRating').value = book.rating || 0;
-    document.getElementById('bookCover').value = book.cover || '';
+    document.getElementById('bookRating').value = book.rating || 0
     document.getElementById('bookNotes').value = book.notes || '';
     document.getElementById('bookModal').classList.add('active');
+    const genreSelect = document.getElementById('bookGenre');
+    Array.from(genreSelect.options).forEach(opt => opt.selected = book.genre?.includes(opt.value));
+    document.getElementById('bookStock').value = book.stock || 0;
+
 }
 
 document.getElementById('bookForm').onsubmit = async e => {
     e.preventDefault();
-    
     const data = {
-        title: bookTitle.value.trim(),
-        author: bookAuthor.value.trim(),
-        genre: bookGenre.value,
+        title: bookTitle.value,
+        description: bookNotes.value, // usa el campo notas como descripción
+        genre: Array.from(bookGenre.selectedOptions).map(o => o.value),
         status: bookStatus.value,
-        rating: parseInt(bookRating.value || 0),
-        cover: bookCover.value.trim(),
-        notes: bookNotes.value.trim()
+        stock: parseInt(bookStock.value || 0),
+        average_rating: parseFloat(bookRating.value || 0)
     };
-    
-    // Validación: al menos 3 campos con valor
-    const nonEmptyFields = Object.entries(data).filter(([key, value]) => 
-        value !== '' && value !== null && value !== 0 && key !== 'book_id' && key !== 'created_at' && key !== 'updated_at'
-    );
-    
-    if (nonEmptyFields.length < 3) {
-        showMessage('⚠️ Debes completar al menos 3 campos (título, autor y uno adicional)', 'error');
-        return;
-    }
-    
     try {
-        showLoading(true);
         if (currentBookId) {
             const updated = await apiRequest(`/books/${currentBookId}`, 'PUT', data);
             const index = books.findIndex(b => b.book_id === currentBookId);
             books[index] = updated;
-            showMessage('✓ Libro actualizado correctamente', 'success');
         } else {
             const created = await apiRequest('/books', 'POST', data);
             books.push(created);
-            showMessage('✓ Libro añadido a tu biblioteca', 'success');
         }
         renderBooks();
         closeModal();
     } catch (e) {
-        showMessage('❌ Error al guardar el libro. Verifica que todos los datos sean correctos.', 'error');
-    } finally {
-        showLoading(false);
+        showError('Error al guardar libro');
     }
 };
 
 async function deleteBook(id) {
-    if (!confirm('¿Estás seguro de que quieres eliminar este libro de tu biblioteca?')) return;
-    try {
-        showLoading(true);
-        await apiRequest(`/books/${id}`, 'DELETE');
-        books = books.filter(b => b.book_id !== id);
-        renderBooks();
-        showMessage('✓ Libro eliminado de tu biblioteca', 'success');
-    } catch (e) {
-        showMessage('❌ Error al eliminar el libro', 'error');
-    } finally {
-        showLoading(false);
-    }
+    if (!confirm('¿Eliminar este libro?')) return;
+    await apiRequest(`/books/${id}`, 'DELETE');
+    books = books.filter(b => b.book_id !== id);
+    renderBooks();
 }
 
-function showMessage(msg, type) {
-    const container = document.getElementById('messageContainer');
-    const div = document.createElement('div');
-    div.className = type === 'error' ? 'error' : 'success';
-    div.textContent = msg;
-    container.innerHTML = '';
-    container.appendChild(div);
-    setTimeout(() => div.remove(), 5000);
+function showError(msg) {
+    document.getElementById('errorContainer').innerHTML = `<div class="error">${msg}</div>`;
 }
-
-function showLoading(show) {
-    document.getElementById('loading').style.display = show ? 'block' : 'none';
+function showLoading(s) {
+    document.getElementById('loading').style.display = s ? 'block' : 'none';
 }
 </script>
 </body>

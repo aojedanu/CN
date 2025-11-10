@@ -18,21 +18,7 @@ Parameters:
     Description: DynamoDB table name
 
 Resources:
-  # ======================================================
-  # DYNAMODB TABLE COMENTAR SI YA ESTA CREADA 
-  # ======================================================
 
-  #BooksTable:
-  #  Type: AWS::DynamoDB::Table
-  #  Properties:
-  #    TableName: !Ref DBDynamoName
-  #    AttributeDefinitions:
-  #      - AttributeName: book_id
-  #        AttributeType: S
-  #    KeySchema:
-  #      - AttributeName: book_id
-  #        KeyType: HASH
-  #    BillingMode: PAY_PER_REQUEST
 
   # ======================================================
   # LAMBDAS
@@ -116,6 +102,56 @@ Resources:
           DB_DYNAMONAME: !Ref DBDynamoName
       Architectures:
         - x86_64
+
+  # OPTIONS /books
+  BooksOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestAPI
+      ResourceId: !Ref BooksResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  # OPTIONS /books/{id}
+  BookOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestAPI
+      ResourceId: !Ref BookResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
 
   # ======================================================
   # CLOUDWATCH LOGS
@@ -304,6 +340,8 @@ Resources:
       - GetBookMethod
       - PutBookMethod
       - DeleteBookMethod
+      - BooksOptionsMethod
+      - BookOptionsMethod  
     Properties:
       RestApiId: !Ref RestAPI
 

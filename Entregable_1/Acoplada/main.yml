@@ -176,20 +176,12 @@ Resources:
       AuthorizationType: NONE
       ApiKeyRequired: true
       Integration:
-        Type: HTTP
+        Type: HTTP_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "http://${NLB.DNSName}:8080/books"
         ConnectionType: VPC_LINK
         ConnectionId: !Ref VPCLink
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
+        
   GetBooksMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -199,19 +191,11 @@ Resources:
       AuthorizationType: NONE
       ApiKeyRequired: true
       Integration:
-        Type: HTTP
+        Type: HTTP_PROXY
         IntegrationHttpMethod: GET
         Uri: !Sub "http://${NLB.DNSName}:8080/books"
         ConnectionType: VPC_LINK
         ConnectionId: !Ref VPCLink
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
   GetBookMethod:
     Type: AWS::ApiGateway::Method
@@ -224,21 +208,13 @@ Resources:
       RequestParameters:
         method.request.path.id: true
       Integration:
-        Type: HTTP
+        Type: HTTP_PROXY
         IntegrationHttpMethod: GET
         Uri: !Sub "http://${NLB.DNSName}:8080/books/{id}"
         ConnectionType: VPC_LINK
         ConnectionId: !Ref VPCLink
         RequestParameters:
           integration.request.path.id: method.request.path.id
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
   PutBookMethod:
     Type: AWS::ApiGateway::Method
@@ -251,21 +227,13 @@ Resources:
       RequestParameters:
         method.request.path.id: true
       Integration:
-        Type: HTTP
+        Type: HTTP_PROXY
         IntegrationHttpMethod: PUT
         Uri: !Sub "http://${NLB.DNSName}:8080/books/{id}"
         ConnectionType: VPC_LINK
         ConnectionId: !Ref VPCLink
         RequestParameters:
           integration.request.path.id: method.request.path.id
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
   DeleteBookMethod:
     Type: AWS::ApiGateway::Method
@@ -278,25 +246,14 @@ Resources:
       RequestParameters:
         method.request.path.id: true
       Integration:
-        Type: HTTP
+        Type: HTTP_PROXY
         IntegrationHttpMethod: DELETE
         Uri: !Sub "http://${NLB.DNSName}:8080/books/{id}"
         ConnectionType: VPC_LINK
         ConnectionId: !Ref VPCLink
         RequestParameters:
           integration.request.path.id: method.request.path.id
-        IntegrationResponses:
-          - StatusCode: 204
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-      MethodResponses:
-        - StatusCode: 204
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # MÉTODOS OPTIONS - SIN API KEY
-  # ============================================================================
   OptionsBooksMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -304,17 +261,15 @@ Resources:
       ResourceId: !Ref BooksResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
-      ApiKeyRequired: false  
+      ApiKeyRequired: false
       Integration:
         Type: MOCK
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
-            ResponseTemplates:
-              application/json: ""
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key'"
         RequestTemplates:
           application/json: '{"statusCode": 200}'
       MethodResponses:
@@ -331,17 +286,15 @@ Resources:
       ResourceId: !Ref BookResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
-      ApiKeyRequired: false  
+      ApiKeyRequired: false
       Integration:
         Type: MOCK
         IntegrationResponses:
           - StatusCode: 200
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-            ResponseTemplates:
-              application/json: ""
+             method.response.header.Access-Control-Allow-Origin: "'*'"
+             method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+             method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key'"
         RequestTemplates:
           application/json: '{"statusCode": 200}'
       MethodResponses:
@@ -350,6 +303,7 @@ Resources:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+
 
   APIDeployment:
     Type: AWS::ApiGateway::Deployment

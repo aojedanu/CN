@@ -1,23 +1,23 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from pydantic import ValidationError
 import psycopg2
 from botocore.exceptions import ClientError
 from models.book import Book
 from db.dynamodb_db import DynamoDBDatabase
 
+
+
+
 app = Flask(__name__)
+
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials= True) # permite cabeceras de autenticacion de otras entidades
 
 try:
     db = DynamoDBDatabase() 
 except ValueError as e:
     raise RuntimeError(f"Error initializing DB: {e}") from e
 
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,x-api-key'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
-    return response
 
 @app.route('/books', methods=['POST'])
 def create_item():
