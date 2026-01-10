@@ -17,8 +17,15 @@ def convert_to_decimal(obj):
         return obj
 
 def lambda_handler(event, context):
+    # Headers CORS
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+    }
+    
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    table_name = os.getenv('DB_DYNAMONAME', 'books-table')
+    table_name = os.getenv('DB_DYNAMONAME', 'books')
     table = dynamodb.Table(table_name)
     
     try:
@@ -34,6 +41,7 @@ def lambda_handler(event, context):
         if len(non_empty_fields) < 3:
             return {
                 'statusCode': 400,
+                'headers': cors_headers,
                 'body': json.dumps({
                     'error': 'El libro debe tener al menos 3 atributos con valor.'
                 })
@@ -55,6 +63,7 @@ def lambda_handler(event, context):
         
         return {
             'statusCode': 201,
+            'headers': cors_headers,
             'body': json.dumps({
                 'message': 'Book created successfully',
                 'book_id': book_id
@@ -64,15 +73,18 @@ def lambda_handler(event, context):
     except json.JSONDecodeError:
         return {
             'statusCode': 400,
+            'headers': cors_headers,
             'body': json.dumps({'error': 'Invalid JSON in request body'})
         }
     except ClientError as e:
         return {
             'statusCode': 500,
+            'headers': cors_headers,
             'body': json.dumps({'error': str(e)})
         }
     except Exception as e:
         return {
             'statusCode': 500,
+            'headers': cors_headers,
             'body': json.dumps({'error': str(e)})
         }

@@ -14,8 +14,15 @@ def decimal_to_float(obj):
     return obj
 
 def lambda_handler(event, context):
+    # Headers CORS
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+    }
+    
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    table_name = os.getenv('DB_DYNAMONAME', 'books-table')
+    table_name = os.getenv('DB_DYNAMONAME', 'books')
     table = dynamodb.Table(table_name)
     
     try:
@@ -32,6 +39,7 @@ def lambda_handler(event, context):
         
         return {
             'statusCode': 200,
+            'headers': cors_headers,
             'body': json.dumps({
                 'count': len(books_sorted),
                 'books': books_sorted
@@ -41,10 +49,12 @@ def lambda_handler(event, context):
     except ClientError as e:
         return {
             'statusCode': 500,
+            'headers': cors_headers,
             'body': json.dumps({'error': str(e)})
         }
     except Exception as e:
         return {
             'statusCode': 500,
+            'headers': cors_headers,
             'body': json.dumps({'error': str(e)})
         }

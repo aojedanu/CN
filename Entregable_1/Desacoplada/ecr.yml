@@ -4,7 +4,7 @@ Description: "Book ECR Repository"
 Parameters:
   RepositoryName:
     Type: String
-    Default: books-lambda-app
+    Default: books-app
     Description: ECR repository name
 
 Resources:
