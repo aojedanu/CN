@@ -1,149 +1,253 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Serverless Books API - API Gateway + Lambda (ECR Images + DynamoDB) with API Key"
+Description: "ECS Fargate + API Gateway REST API con IP privada, NAT Gateway y VPC privada"
 
 Parameters:
-  Region:
+  ImageName:
     Type: String
-    Default: us-east-1
-    Description: AWS Region
+    Description: ECR Image Name
+    Default: books-app:latest
 
-  ECRRepositoryName:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC donde desplegar la infraestructura
+
+  PublicSubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Subnet pública para el NAT Gateway (debe tener Internet Gateway)
+
+  DBType:
     Type: String
-    Default: books-app
-    Description: Nombre del repositorio ECR que contiene todas las imágenes
+    Default: dynamodb
+    AllowedValues:
+      - dynamodb
 
   DBDynamoName:
     Type: String
-    Default: books
+    Default: "books"
     Description: DynamoDB table name
 
+# ============================================================================
+# NETWORKING RESOURCES - SUBNETS PRIVADAS
+# ============================================================================
 Resources:
-
-
-  # ======================================================
-  # LAMBDAS
-  # ======================================================
-  PostBooksLambda:
-    Type: AWS::Lambda::Function
+  # Subnet Privada A
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
     Properties:
-      FunctionName: create-book
-      PackageType: Image
-      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
-      Code:
-        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:post_book"
-      Timeout: 300
-      MemorySize: 512
-      Environment:
-        Variables:
-          DB_DYNAMONAME: !Ref DBDynamoName
-      Architectures:
-        - x86_64
+      VpcId: !Ref VpcId
+      CidrBlock: 172.31.96.0/20  # Rango disponible en VPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: books-private-subnet-a
 
-  GetBooksLambda:
-    Type: AWS::Lambda::Function
+  # Subnet Privada B
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
     Properties:
-      FunctionName: get-books
-      PackageType: Image
-      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
-      Code:
-        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:gets_book"
-      Timeout: 300
-      MemorySize: 512
-      Environment:
-        Variables:
-          DB_DYNAMONAME: !Ref DBDynamoName
-      Architectures:
-        - x86_64
+      VpcId: !Ref VpcId
+      CidrBlock: 172.31.112.0/20   # Rango disponible en VPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: books-private-subnet-b
 
-  GetBookLambda:
-    Type: AWS::Lambda::Function
+  # ============================================================================
+  # NAT GATEWAY PARA ACCESO SALIENTE
+  # ============================================================================
+  NatEip:
+    Type: AWS::EC2::EIP
     Properties:
-      FunctionName: get-book
-      PackageType: Image
-      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
-      Code:
-        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:get_book"
-      Timeout: 300
-      MemorySize: 512
-      Environment:
-        Variables:
-          DB_DYNAMONAME: !Ref DBDynamoName
-      Architectures:
-        - x86_64
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: books-nat-eip
 
-  PutBooksLambda:
-    Type: AWS::Lambda::Function
+  NatGateway:
+    Type: AWS::EC2::NatGateway
     Properties:
-      FunctionName: update-book
-      PackageType: Image
-      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
-      Code:
-        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:put_book"
-      Timeout: 300
-      MemorySize: 512
-      Environment:
-        Variables:
-          DB_DYNAMONAME: !Ref DBDynamoName
-      Architectures:
-        - x86_64
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnetId  # Debe estar en subnet pública
+      Tags:
+        - Key: Name
+          Value: books-nat-gateway
 
-  DeleteBookLambda:
-    Type: AWS::Lambda::Function
+  # Route Table para Subnets Privadas
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
     Properties:
-      FunctionName: delete-book
-      PackageType: Image
-      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/LabRole
-      Code:
-        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}:delete_book"
-      Timeout: 300
-      MemorySize: 512
-      Environment:
-        Variables:
-          DB_DYNAMONAME: !Ref DBDynamoName
-      Architectures:
-        - x86_64
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: books-private-rt
 
-  # ======================================================
-  # CLOUDWATCH LOGS
-  # ======================================================
-  PostBooksLogGroup:
+  # Ruta hacia el NAT Gateway
+  PrivateRouteToNat:
+    Type: AWS::EC2::Route
+    DependsOn: NatGateway
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  # Asociar Route Table con Subnet A
+  PrivateSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  # Asociar Route Table con Subnet B
+  PrivateSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ============================================================================
+  # SECURITY GROUP
+  # ============================================================================
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS tasks
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: books-ecs-sg
+
+  # ============================================================================
+  # LOAD BALANCER RESOURCES
+  # ============================================================================
+  NLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: books-nlb
+      Type: network
+      Scheme: internal
+      Subnets:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+      Tags:
+        - Key: Name
+          Value: books-nlb
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: books-tg
+      Port: 8080
+      Protocol: TCP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Tags:
+        - Key: Name
+          Value: books-tg
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref NLB
+      Port: 8080
+      Protocol: TCP
+
+  # ============================================================================
+  # ECS RESOURCES
+  # ============================================================================
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: books-cluster
+
+  LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${PostBooksLambda}"
+      LogGroupName: /ecs/books
       RetentionInDays: 7
 
-  GetBooksLogGroup:
-    Type: AWS::Logs::LogGroup
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${GetBooksLambda}"
-      RetentionInDays: 7
+      Family: books-task
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 256
+      Memory: 512
+      ExecutionRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      TaskRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      ContainerDefinitions:
+        - Name: books-container
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ImageName}"
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: books
+          Environment:
+            - Name: DB_TYPE
+              Value: !Ref DBType
+            - Name: DB_DYNAMONAME
+              Value: !Ref DBDynamoName
 
-  GetBookLogGroup:
-    Type: AWS::Logs::LogGroup
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - Listener
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${GetBookLambda}"
-      RetentionInDays: 7
+      Cluster: !Ref ECSCluster
+      ServiceName: books-service
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED  #  IP privada
+          Subnets:
+            - !Ref PrivateSubnetA
+            - !Ref PrivateSubnetB
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: books-container
+          ContainerPort: 8080
+          TargetGroupArn: !Ref TargetGroup
 
-  PutBooksLogGroup:
-    Type: AWS::Logs::LogGroup
+  # ============================================================================
+  # API GATEWAY RESOURCES
+  # ============================================================================
+  VPCLink:
+    Type: AWS::ApiGateway::VpcLink
     Properties:
-      LogGroupName: !Sub "/aws/lambda/${PutBooksLambda}"
-      RetentionInDays: 7
+      Name: books-vpc-link
+      TargetArns:
+        - !Ref NLB
 
-  DeleteBookLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${DeleteBookLambda}"
-      RetentionInDays: 7
-
-  # ======================================================
-  # API GATEWAY
-  # ======================================================
   RestAPI:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: books-lambda-api
-      Description: API for Books CRUD (Serverless) with API Key
+      Name: books-api
+      Description: API for Books Management
 
   BooksResource:
     Type: AWS::ApiGateway::Resource
@@ -159,59 +263,6 @@ Resources:
       ParentId: !Ref BooksResource
       PathPart: "{id}"
 
-  # OPTIONS /books (NO requiere API Key para CORS)
-  BooksOptionsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestAPI
-      ResourceId: !Ref BooksResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      ApiKeyRequired: false
-      Integration:
-        Type: MOCK
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-
-  # OPTIONS /books/{id} (NO requiere API Key para CORS)
-  BookOptionsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestAPI
-      ResourceId: !Ref BookResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      ApiKeyRequired: false
-      Integration:
-        Type: MOCK
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-
-  # ---------- MÉTODOS (CON API KEY) ----------
   PostBooksMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -221,12 +272,12 @@ Resources:
       AuthorizationType: NONE
       ApiKeyRequired: true
       Integration:
-        Type: AWS_PROXY
+        Type: HTTP_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub
-          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
-          - { LambdaArn: !GetAtt PostBooksLambda.Arn }
-
+        Uri: !Sub "http://${NLB.DNSName}:8080/books"
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref VPCLink
+        
   GetBooksMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -236,11 +287,11 @@ Resources:
       AuthorizationType: NONE
       ApiKeyRequired: true
       Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub
-          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
-          - { LambdaArn: !GetAtt GetBooksLambda.Arn }
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: GET
+        Uri: !Sub "http://${NLB.DNSName}:8080/books"
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref VPCLink
 
   GetBookMethod:
     Type: AWS::ApiGateway::Method
@@ -253,11 +304,13 @@ Resources:
       RequestParameters:
         method.request.path.id: true
       Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub
-          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
-          - { LambdaArn: !GetAtt GetBookLambda.Arn }
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: GET
+        Uri: !Sub "http://${NLB.DNSName}:8080/books/{id}"
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref VPCLink
+        RequestParameters:
+          integration.request.path.id: method.request.path.id
 
   PutBookMethod:
     Type: AWS::ApiGateway::Method
@@ -270,11 +323,13 @@ Resources:
       RequestParameters:
         method.request.path.id: true
       Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub
-          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
-          - { LambdaArn: !GetAtt PutBooksLambda.Arn }
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: PUT
+        Uri: !Sub "http://${NLB.DNSName}:8080/books/{id}"
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref VPCLink
+        RequestParameters:
+          integration.request.path.id: method.request.path.id
 
   DeleteBookMethod:
     Type: AWS::ApiGateway::Method
@@ -287,58 +342,64 @@ Resources:
       RequestParameters:
         method.request.path.id: true
       Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub
-          - arn:aws:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
-          - { LambdaArn: !GetAtt DeleteBookLambda.Arn }
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: DELETE
+        Uri: !Sub "http://${NLB.DNSName}:8080/books/{id}"
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref VPCLink
+        RequestParameters:
+          integration.request.path.id: method.request.path.id
 
-  # ======================================================
-  # PERMISOS API → LAMBDAS
-  # ======================================================
-  PostBooksPermission:
-    Type: AWS::Lambda::Permission
+  OptionsBooksMethod:
+    Type: AWS::ApiGateway::Method
     Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref PostBooksLambda
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
+      RestApiId: !Ref RestAPI
+      ResourceId: !Ref BooksResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      ApiKeyRequired: false
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
 
-  GetBooksPermission:
-    Type: AWS::Lambda::Permission
+  OptionsBookMethod:
+    Type: AWS::ApiGateway::Method
     Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref GetBooksLambda
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
+      RestApiId: !Ref RestAPI
+      ResourceId: !Ref BookResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      ApiKeyRequired: false
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+             method.response.header.Access-Control-Allow-Origin: "'*'"
+             method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+             method.response.header.Access-Control-Allow-Headers: "'Content-Type,x-api-key'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
 
-  GetBookPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref GetBookLambda
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
-
-  PutBooksPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref PutBooksLambda
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
-
-  DeleteBookPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref DeleteBookLambda
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestAPI}/*/*"
-
-  # ======================================================
-  # DEPLOY + STAGE
-  # ======================================================
   APIDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
@@ -347,8 +408,8 @@ Resources:
       - GetBookMethod
       - PutBookMethod
       - DeleteBookMethod
-      - BooksOptionsMethod
-      - BookOptionsMethod  
+      - OptionsBooksMethod
+      - OptionsBookMethod
     Properties:
       RestApiId: !Ref RestAPI
 
@@ -359,67 +420,52 @@ Resources:
       DeploymentId: !Ref APIDeployment
       StageName: prod
 
-  # ======================================================
-  # API KEY & USAGE PLAN
-  # ======================================================
-  BooksAPIKey:
+  APIKey:
     Type: AWS::ApiGateway::ApiKey
-    DependsOn:
-      - APIDeployment
-      - APIStage
     Properties:
       Name: books-api-key
-      Description: API Key for Books API
       Enabled: true
-      StageKeys:
-        - RestApiId: !Ref RestAPI
-          StageName: !Ref APIStage
 
-  BooksUsagePlan:
+  UsagePlan:
     Type: AWS::ApiGateway::UsagePlan
-    DependsOn:
-      - APIDeployment
-      - APIStage
+    DependsOn: APIStage
     Properties:
       UsagePlanName: books-usage-plan
-      Description: Usage plan for Books API
       ApiStages:
         - ApiId: !Ref RestAPI
           Stage: !Ref APIStage
-      Throttle:
-        BurstLimit: 200
-        RateLimit: 100
-      Quota:
-        Limit: 10000
-        Period: MONTH
 
-  BooksUsagePlanKey:
+  UsagePlanKey:
     Type: AWS::ApiGateway::UsagePlanKey
     Properties:
-      KeyId: !Ref BooksAPIKey
+      KeyId: !Ref APIKey
       KeyType: API_KEY
-      UsagePlanId: !Ref BooksUsagePlan
+      UsagePlanId: !Ref UsagePlan
 
+# ============================================================================
+# OUTPUTS
+# ============================================================================
 Outputs:
   APIEndpoint:
-    Description: API Gateway endpoint
+    Description: API Gateway URL
     Value: !Sub "https://${RestAPI}.execute-api.${AWS::Region}.amazonaws.com/prod"
-  
+
   APIKeyId:
-    Description: API Key ID (use AWS CLI to get the actual key value)
-    Value: !Ref BooksAPIKey
-    Export:
-      Name: !Sub "${AWS::StackName}-APIKeyId"
-  
-  DynamoDBTableName:
-    Description: DynamoDB Table Name
-    #Value: !Ref BooksTable #comentar si ya esta creada
-    Value: !Ref DBDynamoName #si ya esta creada  
-  
-  ECRRepository:
-    Description: ECR Repository URI
-    Value: !Sub "${AWS::AccountId}.dkr.ecr.${Region}.amazonaws.com/${ECRRepositoryName}"
-  
-  UsagePlanId:
-    Description: Usage Plan ID
-    Value: !Ref BooksUsagePlan
+    Description: API Key ID
+    Value: !Ref APIKey
+
+  NatGatewayIP:
+    Description: IP pública del NAT Gateway
+    Value: !Ref NatEip
+
+  PrivateSubnetAId:
+    Description: ID de la Subnet Privada A
+    Value: !Ref PrivateSubnetA
+
+  PrivateSubnetBId:
+    Description: ID de la Subnet Privada B
+    Value: !Ref PrivateSubnetB
+
+  NLBInternalDNS:
+    Description: DNS interno del Network Load Balancer
+    Value: !GetAtt NLB.DNSName
